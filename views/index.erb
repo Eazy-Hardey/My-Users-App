@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Users index page</title>
+    </head>
+    <body>
+        <h1>Users</h1>
+        <%# <p> %>
+        <%# <div><a href="/insert.erb">Add User</a></div> %>
+        <table>
+            <tr>
+                <th>FirstName</th>
+                <th>LastName</th>
+                <th>Email</th>
+                <th>Age</th>
+            </tr>
+
+            <% @users.each do |user| %>
+                <tr>
+                    <td><%= user["firstname"] %></td>
+                    <td><%= user["lastname"] %></td>
+                    <td><%= user["email"] %></td>
+                    <td><%= user["age"] %></td>
+                </tr>
+            <% end %>
+        </table>
+    </body>
+</html>
