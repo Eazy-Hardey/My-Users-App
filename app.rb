@@ -1,79 +1,77 @@
-require 'json'
+# require 'bundler/setup'
+# Bundler.require(:default)
+
 require 'sinatra'
-require './my_user_model.rb'
-
-set('views', './views')
-
-set :bind, '0.0.0.0'
-set :port, 8080
+require 'json'
+require 'sqlite3'
+require_relative 'my_user_model'
 
 enable :sessions
 
+set :views, './views'
 
-get '/users' do
-    status 200
-    User.all.map{|user| user.slice("firstname", "lastname", "age", "email")}.to_json
-    # users added to the database
+before do
+  @user_model = User.new
 end
 
-post '/sign_in' do
-    confirmUser = User.authentication(params[:password], params[:email])
-    if !confirmUser.empty?
-        status 200
-        session[:user_id] = confirmUser[0]["id"]
-        "Signed in"
-    else
-        status 401
-        "Not authorized"
-    end
-    confirmUser[0].to_json
+get '/users' do
+  users = @user_model.all
+  users.each { |user| user.delete('password') }
+  users.to_json
 end
 
 post '/users' do
-    if params[:firstname] != nil
-        makeUser = User.create(params)
-        freshUser = User.find(makeUser.id)
-        userData = {:firstname=>freshUser.firstname, :lastname=>freshUser.lastname, :age=>freshUser.age, :email=>freshUser.email}.to_json
-        # "A user has been added to the database"
-    else
-        inspectUser = User.authentication(params[:password], params[:email])
-        if !inspectUser[0].empty?
-            status 200
-            session[:user_id] = inspectUser[0]["id"]
-            # "Signed in"
-        else
-            status 401
-            "Not authorized"
-        end
-        inspectUser[0].to_json
-    end
+  user_info = [params[:firstname], params[:lastname], params[:age].to_i, params[:password], params[:email]]
+  user_id = @user_model.create(user_info)
+  user = @user_model.find(user_id)
+  user.reject! { |k| k == 'password' }
+  user.to_json
+end
+
+post '/sign_in' do
+  user = @user_model.find_by_email(params[:email])
+  if user && user['password'] == params[:password]
+    session[:user_id] = user['id']
+    user.reject! { |k| k == 'password' }
+    user.to_json
+  else
+    status 401
+    { error: 'Invalid credentials' }.to_json
+  end
 end
 
 put '/users' do
-    User.update(session[:user_id], 'password', params[:password])
-    updatedUser = User.find(session[:user_id])
-    status 200
-    userData = {:firstname=>updatedUser.firstname, :lastname=>updatedUser.lastname, :age=>updatedUser.age, :email=>updatedUser.email}.to_json
+  if session[:user_id]
+    user_id = session[:user_id]
+    @user_model.update(user_id, 'password', params[:new_password])
+    user = @user_model.find(user_id)
+    user.reject! { |k| k == 'password' }
+    user.to_json
+  else
+    status 401
+    { error: 'Not logged in' }.to_json
+  end
 end
 
 delete '/sign_out' do
-    if session[:user_id]
-        session[:user_id] = nil
-        status 204
-        # "Signed out"
-    end
+  session.clear
+  status 204
 end
 
-# gandalf couln't permit deleting a user from the db
 delete '/users' do
-    if !session[:user_id].empty?
-        User.destroy(session[:user_id])
-        status 204
-        # "User deleted"
-    end
+  if session[:user_id]
+    user_id = session[:user_id]
+    @user_model.destroy(user_id)
+    session.clear
+    status 204
+  else
+    status 401
+    { error: 'Not logged in' }.to_json
+  end
 end
 
 get '/' do
-    @users = User.all
-    erb :index
- end
+  erb :index
+end
+set :port, 8080
+set :bind, '0.0.0.0'
